@@ -1,5 +1,7 @@
 # Project Goal
-**Compare the performance of XLM-R and Glot500** when fine-tuned for POS tagging on a better-resourced language and then applied directly to a low-resource language without further training. Analyze the impact of subword tokenization on cross-lingual transfer.
+- Comparison of performance of XLM-R and Glot500 models in zero-shot POS tagging scenarios.
+- Evaluate how well these models transfer POS tagging capabilities from a source language to target low-resource languages
+- Analyze the impact of subword tokenization on cross-lingual transfer
 
 ## Key Points:
 - **Well-defined task**
