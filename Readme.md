@@ -30,6 +30,10 @@
 - **Bits and Pieces: Investigating the Effects of Subwords in Multi-task Parsing across Languages and Domains**:<br>[https://aclanthology.org/2024.lrec-main.215.pdf](https://aclanthology.org/2024.lrec-main.215.pdf)
 - **Make the Best of Cross-Lingual Transfer: Evidence from POS Tagging with over 100 Languages**:<br> [https://aclanthology.org/2022.acl-long.529.pdf](https://aclanthology.org/2022.acl-long.529.pdf)
 
+## Justification for Low-Resource Languages
+- **EU Commission for Digital Language Equality**: <br>[https://www.europarl.europa.eu/cmsdata/257076/Giagkou.pdf](https://www.europarl.europa.eu/cmsdata/257076/Giagkou.pdf)
+  
+  
 ## Multilingual Models
 
 - **Conneau, A., Khandelwal, K., Goyal, N., Chaudhary, V., Wenzek, G., Guzmán, F., … Stoyanov, V.** (2020). *Unsupervised Cross-lingual Representation Learning at Scale*. Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, 8440–8451. Online: Association for Computational Linguistics. [https://doi.org/10.18653/v1/2020.acl-main.747](https://doi.org/10.18653/v1/2020.acl-main.747)
