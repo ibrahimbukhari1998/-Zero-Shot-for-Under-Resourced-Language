@@ -60,6 +60,8 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 1. **XLM-R**: Conneau, A., et al. (2020). *Unsupervised Cross-lingual Representation Learning at Scale*. [DOI: 10.18653/v1/2020.acl-main.747](https://doi.org/10.18653/v1/2020.acl-main.747)
 
 2. **Glot500**: ImaniGooghari, A., et al. (2023). *Glot500: Scaling Multilingual Corpora and Language Models to 500 Languages*. [DOI: 10.18653/v1/2023.acl-long.61](https://doi.org/10.18653/v1/2023.acl-long.61)
+3. Justification for Low-Resource Languages
+- **EU Commission for Digital Language Equality**: <br>[https://www.europarl.europa.eu/cmsdata/257076/Giagkou.pdf](https://www.europarl.europa.eu/cmsdata/257076/Giagkou.pdf)
 
 ### Datasets for POS Tagging
 
