@@ -18,6 +18,7 @@ class POSpipeline:
         
         self.train_dataset = load_dataset("universal_dependencies", train_data_code)
         self.label_list = self.train_dataset["train"].features[f"upos"].feature.names
+        self.train_data_code = train_data_code
 
         
         self.id2label = {idx:label for idx, label in enumerate(self.label_list)}
@@ -80,10 +81,10 @@ class POSpipeline:
         }
     
     
-    def train(self, epochs = 2, batch_size = 16, output_dir="glot500_model", push_to_hub=False):
+    def train(self, epochs = 2, batch_size = 16, push_to_hub=False):
         
         training_args = TrainingArguments(
-            output_dir=output_dir,
+            output_dir=f"glot500_model_{self.train_data_code}",
             learning_rate=2e-5,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
