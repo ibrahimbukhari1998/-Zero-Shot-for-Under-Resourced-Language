@@ -3,6 +3,7 @@ import logging
 import evaluate
 import numpy as np
 from datasets import load_dataset
+from sklearn.metrics import classification_report
 from transformers import AutoTokenizer
 from transformers import DataCollatorForTokenClassification
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer
@@ -150,5 +151,6 @@ class POSpipeline:
             prediction_tags.append(true_pred)
             true_tags.append(true_label)
         
-        result = self.seqeval.compute(predictions=prediction_tags, references=true_tags)
+        # result = self.seqeval.compute(predictions=prediction_tags, references=true_tags)
+        result = classification_report([tag for sent in true_tags for tag in sent],[tag for sent in prediction_tags for tag in sent])
         return result
