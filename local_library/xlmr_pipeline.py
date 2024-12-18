@@ -7,14 +7,17 @@ from transformers import (
     AdamW,
     get_linear_schedule_with_warmup
 )
+import evaluate
 from datasets import load_dataset
+from datasets import Dataset
 import numpy as np
 from sklearn.metrics import classification_report
 import pandas as pd
 from typing import List, Dict, Tuple
 import logging
 import random
-from transformers import AutoTokenizer, AutoModelForTokenClassification
+from transformers import AutoTokenizer, AutoModelForTokenClassification, TrainingArguments, Trainer
+from transformers import DataCollatorForTokenClassification
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -154,73 +157,119 @@ class POSTaggingPipeline:
         self.id2tag = {i: tag for tag, i in self.tag2id.items()}
         logger.info(f"Created mappings for {len(unique_tags)} unique tags: {unique_tags}")
 
+    def tokenize_and_align_labels(self, examples):
+        """Tokenize and align labels with tokens"""
+        tokenized_inputs = self.tokenizer(
+            examples["tokens"], 
+            truncation=True,
+            is_split_into_words=True
+        )
+
+        labels = []
+        for i, label in enumerate(examples["upos"]):
+            word_ids = tokenized_inputs.word_ids(batch_index=i)
+            previous_word_idx = None
+            label_ids = []
+            for word_idx in word_ids:
+                if word_idx is None:
+                    label_ids.append(-100)
+                elif word_idx != previous_word_idx:
+                    label_ids.append(label[word_idx])
+                else:
+                    label_ids.append(-100)
+                previous_word_idx = word_idx
+            labels.append(label_ids)
+
+        tokenized_inputs["labels"] = labels
+        return tokenized_inputs
+    
     def train(self, train_texts: List[List[str]], train_tags: List[List[str]],
-                eval_texts: List[List[str]] = None, eval_tags: List[List[str]] = None,
-                epochs: int = 3, batch_size: int = 16, learning_rate: float = 2e-5):
+          eval_texts: List[List[str]] = None, eval_tags: List[List[str]] = None,
+          epochs: int = 3, batch_size: int = 16, push_to_hub: bool = False):
         
         """Train the model on source language data"""
         if self.tag2id is None:
             self.create_tag_mappings(train_tags)
 
         self.initialize_model(len(self.tag2id))
-
-        train_dataset = POSDataset(train_texts, train_tags, self.tokenizer, self.tag2id)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
+        
+        # Prepare datasets
+        train_examples = {
+            "tokens": train_texts,
+            "upos": [[self.tag2id[t] for t in tag_seq] for tag_seq in train_tags]
+        }
+        train_dataset = Dataset.from_dict(train_examples)
+        
         if eval_texts:
-            eval_dataset = POSDataset(eval_texts, eval_tags, self.tokenizer, self.tag2id)
-            eval_loader = DataLoader(eval_dataset, batch_size=batch_size)
+            eval_examples = {
+                "tokens": eval_texts,
+                "upos": [[self.tag2id[t] for t in tag_seq] for tag_seq in eval_tags]
+            }
+            eval_dataset = Dataset.from_dict(eval_examples)
+        else:
+            eval_dataset = None
 
-        optimizer = AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.01)
-        total_steps = len(train_loader) * epochs
-        scheduler = get_linear_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=total_steps // 10,
-            num_training_steps=total_steps
+        # Initialize data collator
+        data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer)
+
+        # Set up training arguments
+        training_args = TrainingArguments(
+            output_dir=f"xlmr_model_{self.model_name.split('/')[-1]}",
+            learning_rate=2e-5,
+            per_device_train_batch_size=batch_size,
+            per_device_eval_batch_size=batch_size,
+            num_train_epochs=epochs,
+            weight_decay=0.01,
+            evaluation_strategy="epoch" if eval_texts else "no",
+            save_strategy="epoch",
+            load_best_model_at_end=True if eval_texts else False,
+            push_to_hub=push_to_hub
         )
 
-        logger.info("Starting training...")
-        best_f1 = 0
-        for epoch in range(epochs):
-            self.model.train()
-            total_loss = 0
+        # Define metrics computation
+        def compute_metrics(p):
+            predictions, labels = p
+            predictions = np.argmax(predictions, axis=2)
 
-            for batch_idx, batch in enumerate(train_loader):
-                optimizer.zero_grad()
+            # Remove ignored index (special tokens)
+            true_predictions = [
+                [self.id2tag[p] for (p, l) in zip(prediction, label) if l != -100]
+                for prediction, label in zip(predictions, labels)
+            ]
+            true_labels = [
+                [self.id2tag[l] for (p, l) in zip(prediction, label) if l != -100]
+                for prediction, label in zip(predictions, labels)
+            ]
 
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
-                labels = batch['labels'].to(self.device)
+            results = classification_report(
+                [t for l in true_labels for t in l],
+                [t for l in true_predictions for t in l],
+                output_dict=True
+            )
+            return {
+                "precision": results["weighted avg"]["precision"],
+                "recall": results["weighted avg"]["recall"],
+                "f1": results["weighted avg"]["f1-score"],
+                "accuracy": results["accuracy"],
+            }
 
-                outputs = self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels
-                )
+        # Initialize trainer
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            tokenizer=self.tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics,
+        )
 
-                loss = outputs.loss
-                total_loss += loss.item()
+        # Train the model
+        trainer.train()
 
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                optimizer.step()
-                scheduler.step()
-
-                if (batch_idx + 1) % 100 == 0:
-                    logger.info(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {loss.item():.4f}")
-                    print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {loss.item():.4f}")
-
-            avg_loss = total_loss / len(train_loader)
-            logger.info(f"Epoch {epoch+1}/{epochs}, Average Loss: {avg_loss:.4f}")
-
-            if eval_texts:
-                metrics = self.evaluate(eval_loader)
-                current_f1 = metrics['weighted avg']['f1-score']
-                logger.info(f"Validation F1: {current_f1:.4f}")
-
-                if current_f1 > best_f1:
-                    best_f1 = current_f1
-                    logger.info(f"New best F1 score: {best_f1:.4f}")
+        # Push to hub if requested
+        if push_to_hub:
+            trainer.push_to_hub()
 
     def evaluate(self, eval_loader: DataLoader) -> Dict:
         """Evaluate the model"""
