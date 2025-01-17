@@ -4,11 +4,6 @@
 
 Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on a better-resourced language and then applied directly to a low-resource language without further training. Analyze the impact of subword tokenization on cross-lingual transfer.
 
-### Key Points
-- Well-defined task: POS tagging
-- Focus on low-resourced languages
-- Contact: dbernhard@unistra.fr
-
 ## Results
 
 ### Cross-Lingual Transfer Performance
