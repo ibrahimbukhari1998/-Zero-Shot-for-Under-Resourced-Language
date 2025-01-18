@@ -16,6 +16,8 @@ from typing import List, Dict, Tuple, Optional
 import logging
 import random
 from transformers import AutoTokenizer, AutoModelForTokenClassification, TrainingArguments, Trainer, DataCollatorForTokenClassification
+from local_library.data_utils import standardize_dataset_size, add_noise_to_text
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,12 +43,13 @@ def reduce_dataset_size(texts, tags, fraction=0.1, random_seed=42):
 #----------------------------Part of Speech Dataset Processing----------------------------#
 
 class POSDataset(Dataset):
-    def __init__(self, texts: List[List[str]], tags: List[List[str]], tokenizer, tag2id: Dict[str, int], max_len: int = 128):
+    def __init__(self, texts: List[List[str]], tags: List[List[str]], tokenizer, tag2id: Dict[str, int], max_len: int = 128, bpe_dropout: float = 0.1):
         self.texts = texts
         self.tags = tags
         self.tokenizer = tokenizer
         self.tag2id = tag2id
         self.max_len = max_len
+        self.bpe_dropout_prob = bpe_dropout
 
     def __len__(self):
         return len(self.texts)
@@ -61,7 +64,8 @@ class POSDataset(Dataset):
             max_length=self.max_len,
             padding='max_length',
             truncation=True,
-            return_tensors='pt'
+            return_tensors='pt',
+            dropout=self.bpe_dropout_prob
         )
 
         label_ids = []
@@ -96,7 +100,10 @@ class POSTaggingPipeline:
         self.id2tag = None
         self.model = None
 
-    def prepare_data(self, dataset_name: str, split: str = "train") -> Tuple[List[List[str]], List[List[str]]]:
+    def prepare_data(self, dataset_name: str, split: str = "train",
+                second_dataset_name: Optional[str] = None,
+                standardize_size: bool = True,
+                add_noise: bool = True) -> Tuple[List[List[str]], List[List[str]]]:
         """
         Load and prepare data from Universal Dependencies dataset.
 
@@ -108,28 +115,36 @@ class POSTaggingPipeline:
             Tuple[List[List[str]], List[List[str]]]: Tuple of (texts, tags)
         """
         logger.info(f"Loading {dataset_name} dataset, {split} split")
-        try:
-            # Load the dataset
-            dataset = load_dataset("universal_dependencies", dataset_name)
+    
+        # Load primary dataset
+        dataset1 = load_dataset("universal_dependencies", dataset_name)
+        texts1 = [item['tokens'] for item in dataset1[split]]
+        tags1 = [item['upos'] for item in dataset1[split]]
+        
+        if second_dataset_name:
+            logger.info(f"Loading {second_dataset_name} dataset, {split} split")
+            dataset2 = load_dataset("universal_dependencies", second_dataset_name)
+            texts2 = [item['tokens'] for item in dataset2[split]]
+            tags2 = [item['upos'] for item in dataset2[split]]
+            
+            texts = texts1 + texts2
+            tags = tags1 + tags2
+        else:
+            texts = texts1
+            tags = tags1
 
-            # Get the specified split
-            data_split = dataset[split]
+        if standardize_size:
+            texts, tags = standardize_dataset_size(texts, tags)
+            
+        if add_noise:
+            texts = add_noise_to_text(texts)
 
-            # Extract texts and tags
-            texts = [item['tokens'] for item in data_split]
-            tags = [item['upos'] for item in data_split]
+        assert all(len(text) == len(tag) for text, tag in zip(texts, tags)), \
+            "Mismatch between text and tag lengths"
+            
+        logger.info(f"Final dataset size: {len(texts)} sentences")
+        return texts, tags
 
-            logger.info(f"Loaded {len(texts)} sentences from {dataset_name} {split} split")
-
-            # Basic validation
-            assert all(len(text) == len(tag) for text, tag in zip(texts, tags)), \
-                "Mismatch between text and tag lengths"
-
-            return texts, tags
-
-        except Exception as e:
-            logger.error(f"Error loading dataset {dataset_name}: {str(e)}")
-            raise
 
     def initialize_model(self, num_labels: int):
         """Initialize the model with proper classification head"""
@@ -183,7 +198,9 @@ class POSTaggingPipeline:
     
     def train(self, train_texts: List[List[str]], train_tags: List[List[str]],
           eval_texts: List[List[str]] = None, eval_tags: List[List[str]] = None,
-          epochs: int = 3, batch_size: int = 16, push_to_hub: bool = False):
+          epochs: int = 3, batch_size: int = 16, push_to_hub: bool = False, learning_rate: float = 2e-5,
+          bpe_dropout: float = 0.1):
+        
         
         """Train the model on source language data"""
         if self.tag2id is None:
@@ -191,21 +208,16 @@ class POSTaggingPipeline:
 
         self.initialize_model(len(self.tag2id))
         
-        # Prepare datasets
-        train_examples = {
-            "tokens": train_texts,
-            "upos": [[self.tag2id[t] for t in tag_seq] for tag_seq in train_tags]
-        }
-        train_dataset = Dataset.from_dict(train_examples)
-        
+        # Create datasets with BPE dropout
+        train_dataset = POSDataset(train_texts, train_tags, self.tokenizer, 
+                                self.tag2id, bpe_dropout=bpe_dropout)
+        #train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
         if eval_texts:
-            eval_examples = {
-                "tokens": eval_texts,
-                "upos": [[self.tag2id[t] for t in tag_seq] for tag_seq in eval_tags]
-            }
-            eval_dataset = Dataset.from_dict(eval_examples)
-        else:
-            eval_dataset = None
+            eval_dataset = POSDataset(eval_texts, eval_tags, self.tokenizer, 
+                                    self.tag2id, bpe_dropout=0.0)  # No dropout for eval
+            #eval_loader = DataLoader(eval_dataset, batch_size=batch_size)
+    
 
         # Initialize data collator
         data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer)
