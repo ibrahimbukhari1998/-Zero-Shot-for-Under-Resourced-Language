@@ -7,10 +7,58 @@ from sklearn.metrics import classification_report
 from transformers import AutoTokenizer
 from transformers import DataCollatorForTokenClassification
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer
+from typing import List, Dict, Tuple, Optional
+from data_utils import standardize_dataset_size, add_noise_to_text 
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 
 
+class POSDataset(Dataset):
+    def __init__(self, texts: List[List[str]], tags: List[List[str]], 
+                 tokenizer, tag2id: Dict[str, int], max_len: int = 128,
+                 bpe_dropout: float = 0.1):
+        self.texts = texts
+        self.tags = tags
+        self.tokenizer = tokenizer
+        self.tag2id = tag2id
+        self.max_len = max_len
+        self.bpe_dropout_prob = bpe_dropout
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        words = self.texts[idx]
+        tags = self.tags[idx]
+
+        encoded = self.tokenizer(
+            words,
+            is_split_into_words=True,
+            max_length=self.max_len,
+            padding='max_length',
+            truncation=True,
+            return_tensors='pt',
+            dropout=self.bpe_dropout_prob
+        )
+
+        label_ids = []
+        word_ids = encoded.word_ids()
+
+        for word_idx in word_ids:
+            if word_idx is None:
+                label_ids.append(-100)
+            else:
+                label_ids.append(self.tag2id[tags[word_idx]])
+
+        return {
+            'input_ids': encoded['input_ids'].squeeze(),
+            'attention_mask': encoded['attention_mask'].squeeze(),
+            'labels': torch.tensor(label_ids)
+        }
+    
 #----------------------------  POSpipeline Glot500  ----------------------------#
 
 class POSpipeline:
@@ -37,7 +85,39 @@ class POSpipeline:
         self.data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer)
         self.tokenized_dataset = self.train_dataset.map(self.tokenize_and_align_labels, batched=True)
     
-    
+    def prepare_data(self, dataset_name: str, split: str = "train",
+                second_dataset_name: Optional[str] = None,
+                standardize_size: bool = True,
+                add_noise: bool = True) -> Tuple[List[List[str]], List[List[str]]]:
+        """Load and prepare data from Universal Dependencies datasets"""
+        logger.info(f"Loading {dataset_name} dataset, {split} split")
+        
+        # Load primary dataset
+        dataset1 = load_dataset("universal_dependencies", dataset_name)
+        texts1 = [item['tokens'] for item in dataset1[split]]
+        tags1 = [item['upos'] for item in dataset1[split]]
+        
+        if second_dataset_name:
+            logger.info(f"Loading {second_dataset_name} dataset, {split} split")
+            dataset2 = load_dataset("universal_dependencies", second_dataset_name)
+            texts2 = [item['tokens'] for item in dataset2[split]]
+            tags2 = [item['upos'] for item in dataset2[split]]
+            
+            texts = texts1 + texts2
+            tags = tags1 + tags2
+        else:
+            texts = texts1
+            tags = tags1
+
+        if standardize_size:
+            texts, tags = standardize_dataset_size(texts, tags)
+            
+        if add_noise:
+            texts = add_noise_to_text(texts)
+
+        logger.info(f"Final dataset size: {len(texts)} sentences")
+        return texts, tags
+
     def tokenize_and_align_labels(self, examples):
         tokenized_inputs = self.tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
 
@@ -82,11 +162,11 @@ class POSpipeline:
         }
     
     
-    def train(self, epochs = 2, batch_size = 16, push_to_hub=False):
+    def train(self, epochs = 2, batch_size = 16, push_to_hub=False, learning_rate: float = 2e-5, bpe_dropout: float = 0.1):
         
         training_args = TrainingArguments(
             output_dir=f"glot500_model_{self.train_data_code}",
-            learning_rate=2e-5,
+            learning_rate=learning_rate,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
             num_train_epochs=epochs,
@@ -97,15 +177,35 @@ class POSpipeline:
             no_cuda=True,
             push_to_hub=True
             )
+        
+        # Create datasets with BPE dropout
+        train_data = self.train_dataset["train"]
+        eval_data = self.train_dataset["test"]
+        
+        train_dataset = POSDataset(
+            texts=[item['tokens'] for item in train_data],
+            tags=[item['upos'] for item in train_data],
+            tokenizer=self.tokenizer,
+            tag2id=self.label2id,
+            bpe_dropout=bpe_dropout
+        )
+        
+        eval_dataset = POSDataset(
+            texts=[item['tokens'] for item in eval_data],
+            tags=[item['upos'] for item in eval_data],
+            tokenizer=self.tokenizer,
+            tag2id=self.label2id,
+            bpe_dropout=0.0  # No dropout for eval
+        )
 
         trainer = Trainer(
             model=self.model,
             args=training_args,
-            train_dataset=self.tokenized_dataset["train"],
-            eval_dataset=self.tokenized_dataset["test"],
-            processing_class=self.tokenizer,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            tokenizer=self.tokenizer,
             data_collator=self.data_collator,
-            compute_metrics=self.compute_metrics,
+            compute_metrics=self.compute_metrics
         )
         
         trainer.train()
