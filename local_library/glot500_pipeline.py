@@ -1,4 +1,5 @@
 import torch 
+import random
 import logging
 import evaluate
 import numpy as np
@@ -7,63 +8,15 @@ from sklearn.metrics import classification_report
 from transformers import AutoTokenizer
 from transformers import DataCollatorForTokenClassification
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer
-from typing import List, Dict, Tuple, Optional
-from data_utils import standardize_dataset_size, add_noise_to_text 
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 
 
-class POSDataset(Dataset):
-    def __init__(self, texts: List[List[str]], tags: List[List[str]], 
-                 tokenizer, tag2id: Dict[str, int], max_len: int = 128,
-                 bpe_dropout: float = 0.1):
-        self.texts = texts
-        self.tags = tags
-        self.tokenizer = tokenizer
-        self.tag2id = tag2id
-        self.max_len = max_len
-        self.bpe_dropout_prob = bpe_dropout
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, idx):
-        words = self.texts[idx]
-        tags = self.tags[idx]
-
-        encoded = self.tokenizer(
-            words,
-            is_split_into_words=True,
-            max_length=self.max_len,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt',
-            dropout=self.bpe_dropout_prob
-        )
-
-        label_ids = []
-        word_ids = encoded.word_ids()
-
-        for word_idx in word_ids:
-            if word_idx is None:
-                label_ids.append(-100)
-            else:
-                label_ids.append(self.tag2id[tags[word_idx]])
-
-        return {
-            'input_ids': encoded['input_ids'].squeeze(),
-            'attention_mask': encoded['attention_mask'].squeeze(),
-            'labels': torch.tensor(label_ids)
-        }
-    
 #----------------------------  POSpipeline Glot500  ----------------------------#
 
 class POSpipeline:
     
-    def __init__(self, train_data_code:str, model_name = "cis-lmu/glot500-base") -> None:
+    def __init__(self, train_data_code:str, model_name = "cis-lmu/glot500-base", character_level_injection=False, injection_vocab="", injection_prob=0.2) -> None:
         
         self.train_dataset = load_dataset("universal_dependencies", train_data_code)
         self.label_list = self.train_dataset["train"].features[f"upos"].feature.names
@@ -83,42 +36,74 @@ class POSpipeline:
         
         
         self.data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer)
-        self.tokenized_dataset = self.train_dataset.map(self.tokenize_and_align_labels, batched=True)
-    
-    def prepare_data(self, dataset_name: str, split: str = "train",
-                second_dataset_name: Optional[str] = None,
-                standardize_size: bool = True,
-                add_noise: bool = True) -> Tuple[List[List[str]], List[List[str]]]:
-        """Load and prepare data from Universal Dependencies datasets"""
-        logger.info(f"Loading {dataset_name} dataset, {split} split")
+        self.injection_vocab = injection_vocab
+        self.injection_prob = injection_prob
         
-        # Load primary dataset
-        dataset1 = load_dataset("universal_dependencies", dataset_name)
-        texts1 = [item['tokens'] for item in dataset1[split]]
-        tags1 = [item['upos'] for item in dataset1[split]]
-        
-        if second_dataset_name:
-            logger.info(f"Loading {second_dataset_name} dataset, {split} split")
-            dataset2 = load_dataset("universal_dependencies", second_dataset_name)
-            texts2 = [item['tokens'] for item in dataset2[split]]
-            tags2 = [item['upos'] for item in dataset2[split]]
-            
-            texts = texts1 + texts2
-            tags = tags1 + tags2
+        if character_level_injection:
+            self.tokenized_dataset = self.train_dataset.map(self.augment_tokenize_and_align_labels, batched=True)
         else:
-            texts = texts1
-            tags = tags1
+            self.tokenized_dataset = self.train_dataset.map(self.tokenize_and_align_labels, batched=True)
 
-        if standardize_size:
-            texts, tags = standardize_dataset_size(texts, tags)
-            
-        if add_noise:
-            texts = add_noise_to_text(texts)
+    #=================== Adding Character Level Noise ===================#
+    
+    def character_level_augmentation(self, word):
+        """Apply character-level augmentation to a single word."""
+        actions = ["insert", "delete", "replace", "swap"]
+        word = list(word)
+        prob = self.injection_prob
+        
+        if random.random() > prob:
+            return "".join(word)
+        
+        action = random.choice(actions)
+        if action == "insert":
+            idx = random.randint(0, len(word))
+            char = random.choice(self.injection_vocab)
+            word.insert(idx, char)
+        elif action == "delete" and len(word) > 1:
+            idx = random.randint(0, len(word) - 1)
+            word.pop(idx)
+        elif action == "replace" and len(word) > 0:
+            idx = random.randint(0, len(word) - 1)
+            char = random.choice(self.injection_vocab)
+            word[idx] = char
+        elif action == "swap" and len(word) > 1:
+            idx = random.randint(0, len(word) - 2)
+            word[idx], word[idx + 1] = word[idx + 1], word[idx]
+        
+        return "".join(word)
+    
+    def augment_tokenize_and_align_labels(self, examples):
+    
+        augmented_tokens = [
+            [self.character_level_augmentation(token) for token in sentence]
+            for sentence in examples["tokens"]
+        ]
+        
+        tokenized_inputs = self.tokenizer(augmented_tokens, truncation=True, is_split_into_words=True)
+        
+        labels = []
+        for i, label in enumerate(examples[f"upos"]):
+            word_ids = tokenized_inputs.word_ids(batch_index=i)  # Map tokens to their respective word.
+            previous_word_idx = None
+            label_ids = []
+            for word_idx in word_ids:  # Set the special tokens to -100.
+                if word_idx is None:
+                    label_ids.append(-100)
+                elif word_idx != previous_word_idx:  # Only label the first token of a given word.
+                    label_ids.append(label[word_idx])
+                else:
+                    label_ids.append(-100)
+                previous_word_idx = word_idx
+            labels.append(label_ids)
 
-        logger.info(f"Final dataset size: {len(texts)} sentences")
-        return texts, tags
-
+        tokenized_inputs["labels"] = labels
+        return tokenized_inputs
+    
+    #===================================================================#
+    
     def tokenize_and_align_labels(self, examples):
+        
         tokenized_inputs = self.tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
 
         labels = []
@@ -162,11 +147,16 @@ class POSpipeline:
         }
     
     
-    def train(self, epochs = 2, batch_size = 16, push_to_hub=False, learning_rate: float = 2e-5, bpe_dropout: float = 0.1):
+    def train(self, epochs = 2, batch_size = 16, set_name=False, output_name='', train_size=10000):
+        
+        if set_name == False:
+            name = f"glot500_model_{self.train_data_code}"
+        else:
+            name = output_name
         
         training_args = TrainingArguments(
-            output_dir=f"glot500_model_{self.train_data_code}",
-            learning_rate=learning_rate,
+            output_dir=name,
+            learning_rate=2e-5,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
             num_train_epochs=epochs,
@@ -177,41 +167,22 @@ class POSpipeline:
             no_cuda=True,
             push_to_hub=True
             )
-        
-        # Create datasets with BPE dropout
-        train_data = self.train_dataset["train"]
-        eval_data = self.train_dataset["test"]
-        
-        train_dataset = POSDataset(
-            texts=[item['tokens'] for item in train_data],
-            tags=[item['upos'] for item in train_data],
-            tokenizer=self.tokenizer,
-            tag2id=self.label2id,
-            bpe_dropout=bpe_dropout
-        )
-        
-        eval_dataset = POSDataset(
-            texts=[item['tokens'] for item in eval_data],
-            tags=[item['upos'] for item in eval_data],
-            tokenizer=self.tokenizer,
-            tag2id=self.label2id,
-            bpe_dropout=0.0  # No dropout for eval
-        )
 
-        trainer = Trainer(
+        self.trainer = Trainer(
             model=self.model,
             args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=eval_dataset,
-            tokenizer=self.tokenizer,
+            train_dataset=self.tokenized_dataset["train"].take(train_size),
+            eval_dataset=self.tokenized_dataset["test"],
+            processing_class=self.tokenizer,
             data_collator=self.data_collator,
-            compute_metrics=self.compute_metrics
+            compute_metrics=self.compute_metrics,
         )
         
-        trainer.train()
-        
-        if push_to_hub:
-            trainer.push_to_hub()
+        self.trainer.train()
+
+    
+    def push_to_hub(self):
+        self.trainer.push_to_hub()
     
     
     def predict(self, input_text:str):
