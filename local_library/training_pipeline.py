@@ -76,6 +76,7 @@ class POSpipeline:
         
         if character_level_injection:
             self.train_data = self.character_level_augmentation(self.train_data)
+            print("Character Level Noise Added")
 
 
         # Creating label2id & id2label dictionaries
@@ -138,6 +139,8 @@ class POSpipeline:
         """Apply character-level noise"""  
         new_data = []
         
+        print("DATA\n", data)
+        
         for sentence in data:
             new_sentence = []
             
@@ -148,7 +151,8 @@ class POSpipeline:
                 prob = self.injection_prob
                 
                 if random.random() > prob:
-                    return "".join(word)
+                    new_sentence.append("".join(word))
+                    continue
                 
                 action = random.choice(actions)
                 if action == "insert":
@@ -163,6 +167,8 @@ class POSpipeline:
                 new_sentence.append("".join(word))
             
             new_data.append(new_sentence)
+        
+        print("NEW DATA\n", new_data)
         
         return new_data
 
@@ -246,6 +252,7 @@ class POSpipeline:
             compute_metrics=self.compute_metrics,
         )
         
+        print(f"Started Training on Data: {' | '.join(self.train_data_codes)}")
         self.trainer.train()
 
     

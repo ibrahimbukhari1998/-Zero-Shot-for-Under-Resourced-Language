@@ -14,7 +14,7 @@ import local_library.training_pipeline as pipeline
 #----------------------------  Fine-tune and Evaluation: Single Test ----------------------------#
 
 def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, model_name:str,
-                            character_level_injection=False, injection_vocab="", injection_prob=0.2):
+                        character_level_injection=bool, injection_vocab=str, injection_prob=float):
     """
     Input:
         fine_tune_data_codes: List of data codes to fine-tune the model
@@ -32,9 +32,9 @@ def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, mo
     multiple_data_pipeline = pipeline.POSpipeline(
                                                         train_data_codes=fine_tune_data_codes, 
                                                         model_name=model_name,
-                                                        character_level_injection=False,
-                                                        injection_vocab="",
-                                                        injection_prob=0.2
+                                                        character_level_injection=character_level_injection,
+                                                        injection_vocab=injection_vocab,
+                                                        injection_prob=injection_prob
                                                         )
     multiple_data_pipeline.train()
     multiple_data_pipeline.push_to_hub()
@@ -90,6 +90,4 @@ def batch_tune_eval(parameters:List[dict]):
         print("="*100)
     
     return results
-
-
 
