@@ -1,5 +1,5 @@
 from typing import List
-import training_pipeline as pipeline
+import local_library.training_pipeline as pipeline
 
 """
     Training Pipeline on Single Datasets
@@ -31,7 +31,7 @@ def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, mo
     # Fine Tuning the model on multiple datasets
     multiple_data_pipeline = pipeline.POSpipeline(
                                                         train_data_codes=fine_tune_data_codes, 
-                                                        model=model_name,
+                                                        model_name=model_name,
                                                         character_level_injection=False,
                                                         injection_vocab="",
                                                         injection_prob=0.2
