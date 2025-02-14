@@ -5,18 +5,14 @@ import evaluate
 import numpy as np
 from datasets import load_dataset
 from sklearn.metrics import classification_report
-from torch.utils.data import Dataset, DataLoader
-from typing import List, Dict, Tuple, Optional
+from torch.utils.data import Dataset
+from typing import List
 from transformers import AutoTokenizer
 from transformers import DataCollatorForTokenClassification
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer
 
-"""
-
-> Check to see if the model works with glot500 and xlmr
-
-"""
-
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 #----------------------------  POS Dataset ----------------------------#
@@ -63,11 +59,11 @@ class POSDataset(Dataset):
         }
 
 
-#----------------------------  POS Pipeline  ----------------------------#
+#----------------------------  POS Training Pipeline  ----------------------------#
 
 class POSpipeline:
     
-    def __init__(self, train_data_codes:List[str], model_name = "cis-lmu/glot500-base", 
+    def __init__(self, train_data_codes:List[str], model_name = str, 
                 character_level_injection=False, injection_vocab="", injection_prob=0.2) -> None:
         
         # Loading the data
@@ -224,6 +220,8 @@ class POSpipeline:
         else:
             name = output_name
         
+        self.tuned_model_name = name
+        
         training_args = TrainingArguments(
             output_dir=name,
             learning_rate=2e-5,
@@ -253,7 +251,8 @@ class POSpipeline:
     
     def push_to_hub(self):
         self.trainer.push_to_hub()
-    
+        print(f"Model Pushed to Hub with name: {self.tuned_model_name}")
+        
     #=================== Evaluating ===================#
     
     def predict(self, input_text:str):
@@ -278,7 +277,7 @@ class POSpipeline:
         true_tags = []
         
         
-        for input in tokenized_dataset['train']:
+        for input in tokenized_dataset['test']:
             true_pred = []
             true_label = []
             
@@ -296,3 +295,4 @@ class POSpipeline:
         # result = self.seqeval.compute(predictions=prediction_tags, references=true_tags)
         result = classification_report([tag for sent in true_tags for tag in sent],[tag for sent in prediction_tags for tag in sent])
         return result
+
