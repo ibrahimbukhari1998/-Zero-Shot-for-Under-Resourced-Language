@@ -4,9 +4,9 @@ import numpy as np
 from sklearn.utils import resample
 
 def standardize_dataset_size(texts: List[List[str]], 
-                           tags: List[List[str]], 
-                           target_size: int = 10000,
-                           random_seed: int = 42) -> Tuple[List[List[str]], List[List[str]]]:
+                            tags: List[List[str]], 
+                            target_size: int = 10000,
+                            random_seed: int = 42) -> Tuple[List[List[str]], List[List[str]]]:
     """
     Standardize dataset size through over/under sampling to reach target_size.
     """
@@ -22,21 +22,21 @@ def standardize_dataset_size(texts: List[List[str]],
     
     if current_size > target_size:
         standardized_data = resample(combined_data,
-                                   n_samples=target_size,
-                                   random_state=random_seed,
-                                   replace=False)
+                                    n_samples=target_size,
+                                    random_state=random_seed,
+                                    replace=False)
     else:
         standardized_data = resample(combined_data,
-                                   n_samples=target_size,
-                                   random_state=random_seed,
-                                   replace=True)
+                                    n_samples=target_size,
+                                    random_state=random_seed,
+                                    replace=True)
     
     standardized_texts, standardized_tags = zip(*standardized_data)
     return list(standardized_texts), list(standardized_tags)
 
 def add_noise_to_text(texts: List[List[str]], 
-                     noise_ratio: float = 0.15,
-                     random_seed: int = 42) -> List[List[str]]:
+                        noise_ratio: float = 0.15,
+                        random_seed: int = 42) -> List[List[str]]:
     """
     Add noise to text data by randomly modifying tokens.
     """

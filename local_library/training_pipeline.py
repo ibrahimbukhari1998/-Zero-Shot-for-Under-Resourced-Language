@@ -11,6 +11,13 @@ from transformers import AutoTokenizer
 from transformers import DataCollatorForTokenClassification
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer
 
+"""
+
+> Check to see if the model works with glot500 and xlmr
+
+"""
+
+
 
 #----------------------------  POS Dataset ----------------------------#
 
@@ -56,7 +63,7 @@ class POSDataset(Dataset):
         }
 
 
-#----------------------------  POS Pipeline Glot500  ----------------------------#
+#----------------------------  POS Pipeline  ----------------------------#
 
 class POSpipeline:
     
