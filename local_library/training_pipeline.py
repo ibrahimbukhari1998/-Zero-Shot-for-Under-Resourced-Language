@@ -1,20 +1,62 @@
-import torch 
+import torch
+import torch.nn as nn
 import random
 import logging
 import evaluate
 import numpy as np
 from datasets import load_dataset
+from dataclasses import dataclass
 from sklearn.metrics import classification_report
 from torch.utils.data import Dataset
 from typing import List
-from transformers import AutoTokenizer
+from transformers import XLMRobertaTokenizer, AutoTokenizer
 from transformers import DataCollatorForTokenClassification
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@dataclass
+class DropoutConfig: 
+    ''' Configuration for different dropout strategies '''
+    model_type: str
+    dropout_prob: float = 0.1
+    training: bool = True
 
+class TokenizerWithDropout:
+    def __init__(self, model_name: str, config: DropoutConfig):
+        self.config = config
+        if config.model_type == 'xlmr':
+            self.tokenizer = XLMRobertaTokenizer.from_pretrained(model_name)
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    def tokenize(self, text, training=True):
+        if not training: 
+            return self.tokenizer(text, return_tensors='pt')
+        
+        if self.config.model_type == 'xlmr':
+            # BPE dropout for XLM-R
+            tokens = self.tokenizer.tokenize(text)
+            kept_tokens = []
+
+            for token in tokens:
+                if random.random() < self.config.dropout_prob:
+                    kept_tokens.append(token)
+
+            return self.tokenizer.convert_tokens_to_ids(kept_tokens)
+
+        else:
+            # Word dropout for Glot500
+            tokens = text.split() # split into words
+            kept_tokens = []
+
+            for token in tokens:
+                if random.random() < self.config.dropout_prob: 
+                    kept_tokens.append(token)
+            
+            return self.tokenizer(" ".join(kept_tokens), return_tensors='pt')
+    
 #----------------------------  POS Dataset ----------------------------#
 
 class POSDataset(Dataset):
@@ -65,7 +107,7 @@ class POSpipeline:
     
     def __init__(self, train_data_codes:List[str], model_name = str, 
                 character_level_injection=False, injection_vocab="", injection_prob=0.2, 
-                sample_threshold=0) -> None:
+                sample_threshold=0, use_dropout=False, dropout_prob=0.1) -> None:
         
         # Loading the data
         self.sample_threshold = sample_threshold
@@ -80,20 +122,30 @@ class POSpipeline:
             self.train_data = self.character_level_augmentation(self.train_data)
             print("Character Level Noise Added")
 
+        # initalize dropout if enabled
+        self.use_dropout = use_dropout
+        if use_dropout:
+            model_type = 'xlmr' if 'xlmr-roberta' in model_name.lower() else 'glot500'
+            dropout_config = DropoutConfig(
+                model_type=model_type,
+                dropout_prob=dropout_prob
+            )
+            self.tokenizer = TokenizerWithDropout(model_name, dropout_config)
+        else: 
+            # regular tokenizer for other experiments
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         # Creating label2id & id2label dictionaries
         self.label2id = {label: idx for idx, label in enumerate(set(label for labels in self.train_labels for label in labels))}
         self.id2label = {idx: label for label, idx in self.label2id.items()}
         
-        # Loading the tokenizer and model
+        # Loading the model
         self.seqeval = evaluate.load("seqeval")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForTokenClassification.from_pretrained(model_name, 
-                                                                    num_labels=len(self.id2label), 
-                                                                    id2label=self.id2label, 
-                                                                    label2id=self.label2id )
+        self.model = AutoModelForTokenClassification.from_pretrained(model_name,
+                                                num_labels=len(self.id2label),
+                                                id2label=self.id2label,
+                                                label2id=self.label2id)
         self.data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer)
-        
         
         # Converting Data to TF_Dataset format
         self.train_dataset = POSDataset(
@@ -227,7 +279,10 @@ class POSpipeline:
     #=================== Training ===================#
     
     def train(self, epochs = 2, batch_size = 16, set_name=False, output_name=''):
-        
+        # enable dropout training mode if using dropout
+        if self.use_dropout:
+            self.tokenizer.config.training = True
+
         if set_name == False:
             joined_codes = "_".join(self.train_data_codes)
             name = f"glot500_{joined_codes}"
@@ -262,6 +317,10 @@ class POSpipeline:
         
         print(f"Started Training on Data: {' | '.join(self.train_data_codes)}")
         self.trainer.train()
+        
+        # disable dropout after training
+        if self.use_dropout:
+            self.tokenizer.config.training = False
 
     
     def push_to_hub(self):
@@ -288,6 +347,10 @@ class POSpipeline:
     
     
     def evaluate(self, data_code:str):
+
+        # disable dropout for evaluation
+        if self.use_dropout:
+            self.tokenizer.config.training = False
         
         test_dataset = load_dataset("universal_dependencies", data_code)
         tokenized_dataset = test_dataset.map(self.tokenize_and_align_labels, batched=True)
@@ -314,3 +377,4 @@ class POSpipeline:
         # result = self.seqeval.compute(predictions=prediction_tags, references=true_tags)
         result = classification_report([tag for sent in true_tags for tag in sent],[tag for sent in prediction_tags for tag in sent])
         return result
+    
