@@ -64,9 +64,11 @@ class POSDataset(Dataset):
 class POSpipeline:
     
     def __init__(self, train_data_codes:List[str], model_name = str, 
-                character_level_injection=False, injection_vocab="", injection_prob=0.2) -> None:
+                character_level_injection=False, injection_vocab="", injection_prob=0.2, 
+                sample_threshold=0) -> None:
         
         # Loading the data
+        self.sample_threshold = sample_threshold
         self.train_data_codes = train_data_codes
         self.train_data, self.train_labels, self.eval_data, self.eval_labels, self.label_list = self.__perpare_data(train_data_codes)
 
@@ -123,6 +125,12 @@ class POSpipeline:
             train_tags=[item['upos'] for item in dataset['train']]
             eval_texts=[item['tokens'] for item in dataset['test']]
             eval_tags=[item['upos'] for item in dataset['test']]
+            
+            # Sample the data
+            if self.sample_threshold > 0.0:
+                if self.sample_threshold < len(train_texts):
+                    train_texts = train_texts[:int(self.sample_threshold)]
+                    train_tags = train_tags[:int(self.sample_threshold)]
             
             # Add the data to the lists
             train_data.extend(train_texts)
@@ -218,7 +226,7 @@ class POSpipeline:
     
     #=================== Training ===================#
     
-    def train(self, epochs = 2, batch_size = 16, set_name=False, output_name='', train_size=10000):
+    def train(self, epochs = 2, batch_size = 16, set_name=False, output_name=''):
         
         if set_name == False:
             joined_codes = "_".join(self.train_data_codes)
@@ -309,10 +317,14 @@ class POSpipeline:
 
 
 
+
+
+
 #----------------------------  Fine-tune and Evaluation: Single Test ----------------------------#
 
-def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, model_name:str,
-                        character_level_injection=bool, injection_vocab=str, injection_prob=float):
+def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, model_name:str, tuned_model_name:str,
+                        character_level_injection=bool, injection_vocab=str, injection_prob=float,
+                        sample_threshold=int):
     """
     Input:
         fine_tune_data_codes: List of data codes to fine-tune the model
@@ -332,17 +344,16 @@ def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, mo
                                                         model_name=model_name,
                                                         character_level_injection=character_level_injection,
                                                         injection_vocab=injection_vocab,
-                                                        injection_prob=injection_prob
+                                                        injection_prob=injection_prob,
+                                                        sample_threshold=sample_threshold
                                                         )
-    multiple_data_pipeline.train()
+    multiple_data_pipeline.train(set_name=True, output_name=tuned_model_name)
     multiple_data_pipeline.push_to_hub()
     
     # Evaluating the model on the test data
     result = multiple_data_pipeline.evaluate(test_data_code)
     
     return result
-
-
 
 
 
@@ -358,9 +369,11 @@ def batch_tune_eval(parameters:List[dict]):
                 'tuning_codes': List of data codes to fine-tune the model
                 'test_code': string of Data code to test the model
                 'model_name': string Name of the model to train
+                'tuned_model_name': string Name of the fine-tuned model
                 'character_level_injection': Bool of Whether to inject character level noise
                 'injection_vocab': string Vocabulary for character level injection
                 'injection_prob': float Probability of injecting the noise
+                'sample_threshold': int Number of samples to consider
             }
         ]
     Output:
@@ -377,19 +390,23 @@ def batch_tune_eval(parameters:List[dict]):
         tuning_codes = param['tuning_codes']
         test_code = param['test_code']
         model_name = param['model_name']
+        tuned_model_name = param['tuned_model_name']
         character_level_injection = param['character_level_injection']
         injection_vocab = param['injection_vocab']
         injection_prob = param['injection_prob']
+        sample_threshold = param['sample_threshold']
         
         # Running the pipeline
-        result = tuning_and_evaluating(tuning_codes, test_code, model_name, character_level_injection, injection_vocab, injection_prob)
+        result = tuning_and_evaluating(tuning_codes, test_code, model_name, tuned_model_name,
+                                        character_level_injection, injection_vocab, injection_prob,
+                                        sample_threshold)
         
         # Storing the results
+        print("="*100)
         results.append({'tuning_codes':tuning_codes, 'test_code':test_code, 'model_name':model_name, 'result':result})
         print(f"Model: {model_name}\n, Tuning Data : {tuning_codes}\n, Test Data: {test_code}\n, Result: {result}")
         print("="*100)
     
     return results
-
 
 
