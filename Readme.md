@@ -6,7 +6,8 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 
 ## Results
 
-### Cross-Lingual Transfer Performance
+### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning Dataset
+
 
 | High Resource | Low Resource | Model   | Accuracy | F1 Score |
 |--------------|--------------|---------|----------|-----------|
@@ -18,6 +19,21 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 | French       | Catalan      | Glot500 | 69%      | 69%      |
 | Russian      | Ukrainian    | XLM-R   | 91%      | 90%      |
 | Russian      | Ukrainian    | Glot500 | 76%      | 73%      |
+
+
+### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning Dataset with Noise Injection
+
+
+| High Resource | Low Resource | Model   | Noise Inj Percent | Accuracy | F1 Score |
+|--------------|--------------|---------|----------|----------|-----------|
+| English      | Wolof        | XLM-R   |         | %      | %      |
+| English      | Wolof        | Glot500 |         | %      | %      |
+| Standard Arabic | Urdu      | XLM-R   |         | %      | %      |
+| Standard Arabic | Urdu      | Glot500 |         | %      | %      |
+| French       | Catalan      | XLM-R   |         | %      | %      |
+| French       | Catalan      | Glot500 |         | %      | %      |
+| Russian      | Ukrainian    | XLM-R   |         | %      | %      |
+| Russian      | Ukrainian    | Glot500 |         | %      | %      |
 
 ## Project Steps
 
