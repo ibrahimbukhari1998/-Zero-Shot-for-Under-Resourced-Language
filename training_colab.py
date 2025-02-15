@@ -64,11 +64,9 @@ class POSDataset(Dataset):
 class POSpipeline:
     
     def __init__(self, train_data_codes:List[str], model_name = str, 
-                character_level_injection=False, injection_vocab="", injection_prob=0.2, 
-                sample_threshold=0) -> None:
+                character_level_injection=False, injection_vocab="", injection_prob=0.2) -> None:
         
         # Loading the data
-        self.sample_threshold = sample_threshold
         self.train_data_codes = train_data_codes
         self.train_data, self.train_labels, self.eval_data, self.eval_labels, self.label_list = self.__perpare_data(train_data_codes)
 
@@ -125,12 +123,6 @@ class POSpipeline:
             train_tags=[item['upos'] for item in dataset['train']]
             eval_texts=[item['tokens'] for item in dataset['test']]
             eval_tags=[item['upos'] for item in dataset['test']]
-            
-            # Sample the data
-            if self.sample_threshold > 0.0:
-                if self.sample_threshold < len(train_texts):
-                    train_texts = train_texts[:int(self.sample_threshold)]
-                    train_tags = train_tags[:int(self.sample_threshold)]
             
             # Add the data to the lists
             train_data.extend(train_texts)
@@ -226,7 +218,7 @@ class POSpipeline:
     
     #=================== Training ===================#
     
-    def train(self, epochs = 2, batch_size = 16, set_name=False, output_name=''):
+    def train(self, epochs = 2, batch_size = 16, set_name=False, output_name='', train_size=10000):
         
         if set_name == False:
             joined_codes = "_".join(self.train_data_codes)
@@ -314,3 +306,90 @@ class POSpipeline:
         # result = self.seqeval.compute(predictions=prediction_tags, references=true_tags)
         result = classification_report([tag for sent in true_tags for tag in sent],[tag for sent in prediction_tags for tag in sent])
         return result
+
+
+
+#----------------------------  Fine-tune and Evaluation: Single Test ----------------------------#
+
+def tuning_and_evaluating(fine_tune_data_codes:List[str], test_data_code:str, model_name:str,
+                        character_level_injection=bool, injection_vocab=str, injection_prob=float):
+    """
+    Input:
+        fine_tune_data_codes: List of data codes to fine-tune the model
+        test_data_code: Data code to test the model
+        model_name: Name of the model to train
+        character_level_injection: Whether to inject character level noise
+        injection_vocab: Vocabulary for character level injection
+        injection_prob: Probability of injecting the noise
+
+    Output:
+        Classification report for the model on the test data
+    """
+    
+    # Fine Tuning the model on multiple datasets
+    multiple_data_pipeline = POSpipeline(
+                                                        train_data_codes=fine_tune_data_codes, 
+                                                        model_name=model_name,
+                                                        character_level_injection=character_level_injection,
+                                                        injection_vocab=injection_vocab,
+                                                        injection_prob=injection_prob
+                                                        )
+    multiple_data_pipeline.train()
+    multiple_data_pipeline.push_to_hub()
+    
+    # Evaluating the model on the test data
+    result = multiple_data_pipeline.evaluate(test_data_code)
+    
+    return result
+
+
+
+
+
+#----------------------------  Batch Running ----------------------------#
+
+def batch_tune_eval(parameters:List[dict]):
+    """
+    Input:
+        parameters: List of dictionaries containing the parameters for the pipeline
+        
+        paramters = [
+            {
+                'tuning_codes': List of data codes to fine-tune the model
+                'test_code': string of Data code to test the model
+                'model_name': string Name of the model to train
+                'character_level_injection': Bool of Whether to inject character level noise
+                'injection_vocab': string Vocabulary for character level injection
+                'injection_prob': float Probability of injecting the noise
+            }
+        ]
+    Output:
+        List of dictionaries containing the results for the pipeline
+    """
+    
+    
+    results =[]
+    
+    # Running the pipeline for multiple parameters
+    for param in parameters:
+        
+        # Extracting the parameters
+        tuning_codes = param['tuning_codes']
+        test_code = param['test_code']
+        model_name = param['model_name']
+        character_level_injection = param['character_level_injection']
+        injection_vocab = param['injection_vocab']
+        injection_prob = param['injection_prob']
+        
+        # Running the pipeline
+        result = tuning_and_evaluating(tuning_codes, test_code, model_name, character_level_injection, injection_vocab, injection_prob)
+        
+        # Storing the results
+        results.append({'tuning_codes':tuning_codes, 'test_code':test_code, 'model_name':model_name, 'result':result})
+        print(f"Model: {model_name}\n, Tuning Data : {tuning_codes}\n, Test Data: {test_code}\n, Result: {result}")
+        print("="*100)
+    
+    return results
+
+
+
