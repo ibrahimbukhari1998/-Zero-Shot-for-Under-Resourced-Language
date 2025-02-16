@@ -31,6 +31,9 @@ class TokenizerWithDropout:
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     
+    def __call__(self, text, **kwargs):
+        return self.tokenizer(text, **kwargs)
+    
     def tokenize(self, text, training=True):
         if not training: 
             return self.tokenizer(text, return_tensors='pt')
@@ -72,33 +75,58 @@ class POSDataset(Dataset):
         return len(self.texts)
     
     
-    def __getitem__(self,idx):
-        sentence = self.texts[idx]
-        labels = self.labels[idx]
-        
-        encoded = self.tokenizer(
-            sentence,
-            is_split_into_words=True,
-            max_length=self.max_len,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt'
-        )
+    def __getitem__(self, idx):
+      sentence = self.texts[idx]
+      labels = self.labels[idx]
 
-        label_ids = []
-        word_ids = encoded.word_ids()
+      # Handle dropout-enabled tokenizer
+      if isinstance(self.tokenizer, TokenizerWithDropout) and self.tokenizer.config.training:
+          # Apply dropout tokenization 
+          input_ids = self.tokenizer.tokenize(sentence, training=True)
+          attention_mask = [1] * len(input_ids)
 
-        for word_idx in word_ids:
-            if word_idx is None:
-                label_ids.append(-100)
-            else:
-                label_ids.append(labels[word_idx])
+          # Pad if needed (mimic HuggingFace behavior)
+          if len(input_ids) < self.max_len:
+              padding_length = self.max_len - len(input_ids)
+              input_ids += [self.tokenizer.tokenizer.pad_token_id] * padding_length
+              attention_mask += [0] * padding_length
+          else:
+              input_ids = input_ids[:self.max_len]
+              attention_mask = attention_mask[:self.max_len]
 
-        return {
-            'input_ids': encoded['input_ids'].squeeze(),
-            'attention_mask': encoded['attention_mask'].squeeze(),
-            'labels': torch.tensor(label_ids)
-        }
+          label_ids = labels[:self.max_len] + [-100] * (self.max_len - len(labels))
+
+          return {
+              'input_ids': torch.tensor(input_ids),
+              'attention_mask': torch.tensor(attention_mask),
+              'labels': torch.tensor(label_ids)
+          }
+
+      # Normal tokenization for non-dropout runs
+      encoded = self.tokenizer(
+          sentence,
+          is_split_into_words=True,
+          max_length=self.max_len,
+          padding='max_length',
+          truncation=True,
+          return_tensors='pt'
+      )
+
+      label_ids = []
+      word_ids = encoded.word_ids()
+
+      for word_idx in word_ids:
+          if word_idx is None:
+              label_ids.append(-100)
+          else:
+              label_ids.append(labels[word_idx])
+
+      return {
+          'input_ids': encoded['input_ids'].squeeze(),
+          'attention_mask': encoded['attention_mask'].squeeze(),
+          'labels': torch.tensor(label_ids)
+      }
+
 
 
 #----------------------------  POS Training Pipeline  ----------------------------#
@@ -377,4 +405,3 @@ class POSpipeline:
         # result = self.seqeval.compute(predictions=prediction_tags, references=true_tags)
         result = classification_report([tag for sent in true_tags for tag in sent],[tag for sent in prediction_tags for tag in sent])
         return result
-    
