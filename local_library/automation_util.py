@@ -90,9 +90,9 @@ def batch_tune_eval(parameters:List[dict]):
         tuned_model_name = param['tuned_model_name']
 
         # noise injection parameters (optional)
-        character_level_injection = param['character_level_injection']
-        injection_vocab = param['injection_vocab']
-        injection_prob = param['injection_prob']
+        character_level_injection = param.get('character_level_injection', False)
+        injection_vocab = param.get('injection_vocab', '')
+        injection_prob = param.get('injection_prob', 0.0)
 
         # dropout parameters (optional)
         use_dropout = param.get('use_dropout', False)
