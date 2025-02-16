@@ -26,11 +26,11 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 
 | High Resource | Low Resource | Model   | Noise Inj Percent | Accuracy | F1 Score |
 |--------------|--------------|---------|----------|----------|-----------|
-| English      | Wolof        | XLM-R   |         | %      | %      |
+| English      | Wolof        | XLM-R   |25%         | 23%      | 20%      |
 | English      | Wolof        | Glot500 |         | %      | %      |
 | Standard Arabic | Urdu      | XLM-R   |         | %      | %      |
 | Standard Arabic | Urdu      | Glot500 |         | %      | %      |
-| French       | Catalan      | XLM-R   |         | %      | %      |
+| French       | Catalan      | XLM-R   |25%       | 46%      | 46%      |
 | French       | Catalan      | Glot500 |         | %      | %      |
 | Russian      | Ukrainian    | XLM-R   |         | %      | %      |
 | Russian      | Ukrainian    | Glot500 |         | %      | %      |
