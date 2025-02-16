@@ -30,35 +30,41 @@ class TokenizerWithDropout:
             self.tokenizer = XLMRobertaTokenizer.from_pretrained(model_name)
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
-    def __call__(self, text, **kwargs):
-        return self.tokenizer(text, **kwargs)
-    
-    def tokenize(self, text, training=True):
-        if not training: 
-            return self.tokenizer(text, return_tensors='pt')
-        
+
+    def __call__(self, *args, **kwargs):
+        return self.tokenizer(*args, **kwargs)
+
+    def tokenize(self, tokens, training=True):
+        if not training:
+            return self.tokenizer(tokens, is_split_into_words=True, return_tensors='pt')['input_ids'][0].tolist()
+
         if self.config.model_type == 'xlmr':
             # BPE dropout for XLM-R
-            tokens = self.tokenizer.tokenize(text)
-            kept_tokens = []
-
-            for token in tokens:
-                if random.random() < self.config.dropout_prob:
-                    kept_tokens.append(token)
-
+            subword_tokens = self.tokenizer.tokenize(" ".join(tokens))
+            kept_tokens = [token for token in subword_tokens if random.random() >= self.config.dropout_prob]
             return self.tokenizer.convert_tokens_to_ids(kept_tokens)
 
         else:
             # Word dropout for Glot500
-            tokens = text.split() # split into words
-            kept_tokens = []
+            kept_tokens = [token for token in tokens if random.random() >= self.config.dropout_prob]
+            return self.tokenizer(" ".join(kept_tokens), return_tensors='pt')['input_ids'][0].tolist()
 
-            for token in tokens:
-                if random.random() < self.config.dropout_prob: 
-                    kept_tokens.append(token)
-            
-            return self.tokenizer(" ".join(kept_tokens), return_tensors='pt')
+    # Delegate `pad` to the underlying tokenizer
+    def pad(self, *args, **kwargs):
+        return self.tokenizer.pad(*args, **kwargs)
+
+    # Delegate `convert_tokens_to_ids`
+    def convert_tokens_to_ids(self, tokens):
+        return self.tokenizer.convert_tokens_to_ids(tokens)
+
+    # Delegate `decode`
+    def decode(self, *args, **kwargs):
+        return self.tokenizer.decode(*args, **kwargs)
+
+    # Optionally delegate other properties if needed
+    def __getattr__(self, name):
+        return getattr(self.tokenizer, name)
+
     
 #----------------------------  POS Dataset ----------------------------#
 
