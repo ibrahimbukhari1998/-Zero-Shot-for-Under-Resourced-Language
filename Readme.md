@@ -35,6 +35,20 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 | Russian      | Ukrainian    | XLM-R   |         | %      | %      |
 | Russian      | Ukrainian    | Glot500 |         | %      | %      |
 
+### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning with BPE/Word Dropout
+| High Resource | Low Resource | Model   | Dropout Prob | Accuracy | F1 Score |
+|--------------|--------------|---------|----------|----------|-----------|
+| English      | Wolof        | XLM-R   |0.1      |   48%        |  30%    |
+| English      | Wolof        | XLM-R   |0.2     |   41%        |  21%    |
+| English      | Wolof        | Glot500 |         | %      | %      |
+| Standard Arabic | Urdu      | XLM-R   |         | %      | %      |
+| Standard Arabic | Urdu      | Glot500 |         | %      | %      |
+| French       | Catalan      | XLM-R   |0.1      |  40%     |   21%  |
+| French       | Catalan      | XLM-R   |0.2      |  35%     |   15%  |
+| French       | Catalan      | Glot500 |         | %      | %      |
+| Russian      | Ukrainian    | XLM-R   |         | %      | %      |
+| Russian      | Ukrainian    | Glot500 |         | %      | %      |
+
 ## Project Steps
 
 1. **Model Fine-Tuning**
