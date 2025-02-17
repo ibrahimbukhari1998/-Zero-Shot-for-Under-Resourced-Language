@@ -19,9 +19,9 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 |                 | Glot500 | 24% | 10% |
 | French → Catalan | | | |
 |                 | XLM-R | 47% | 47% |
-|                 | Glot500 | 69% | 69% |
+|                 | Glot500 | 68% | 68% |
 | Russian → Ukrainian | | | |
-|                 | XLM-R | 72% | 69% |
+|                 | XLM-R | 54% | 53% |
 |                 | Glot500 | 72% | 69% |
 
 
