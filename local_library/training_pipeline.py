@@ -69,12 +69,23 @@ class TokenizerWithDropout:
 #----------------------------  POS Dataset ----------------------------#
 
 class POSDataset(Dataset):
-    def __init__(self, texts, labels, tokenizer, max_len: int = 128):
-        
+    def __init__(self, texts, labels, tokenizer, tag2id, max_len: int = 128):
         self.texts = texts
         self.labels = labels
         self.tokenizer = tokenizer
+        self.tag2id = tag2id
         self.max_len = max_len
+
+        # Debugging: print unique labels in the dataset
+        unique_labels = set(l for label_seq in self.labels for l in label_seq)
+        print(f"✅ Unique labels in dataset: {unique_labels}")
+        print(f"✅ tag2id mapping: {self.tag2id}")
+
+        # Check if any label is out of range
+        max_label_id = max(self.tag2id.values())
+        invalid_labels = [l for l in unique_labels if l not in self.tag2id]
+        if invalid_labels:
+            raise ValueError(f"Invalid labels found: {invalid_labels}, max label should be {max_label_id}")
 
     
     def __len__(self):
@@ -85,30 +96,6 @@ class POSDataset(Dataset):
       sentence = self.texts[idx]
       labels = self.labels[idx]
 
-      # Handle dropout-enabled tokenizer
-      if isinstance(self.tokenizer, TokenizerWithDropout) and self.tokenizer.config.training:
-          # Apply dropout tokenization 
-          input_ids = self.tokenizer.tokenize(sentence, training=True)
-          attention_mask = [1] * len(input_ids)
-
-          # Pad if needed (mimic HuggingFace behavior)
-          if len(input_ids) < self.max_len:
-              padding_length = self.max_len - len(input_ids)
-              input_ids += [self.tokenizer.tokenizer.pad_token_id] * padding_length
-              attention_mask += [0] * padding_length
-          else:
-              input_ids = input_ids[:self.max_len]
-              attention_mask = attention_mask[:self.max_len]
-
-          label_ids = labels[:self.max_len] + [-100] * (self.max_len - len(labels))
-
-          return {
-              'input_ids': torch.tensor(input_ids),
-              'attention_mask': torch.tensor(attention_mask),
-              'labels': torch.tensor(label_ids)
-          }
-
-      # Normal tokenization for non-dropout runs
       encoded = self.tokenizer(
           sentence,
           is_split_into_words=True,
@@ -125,13 +112,18 @@ class POSDataset(Dataset):
           if word_idx is None:
               label_ids.append(-100)
           else:
-              label_ids.append(labels[word_idx])
+              # 🚀 Debugging: Check if label exists in tag2id
+              if labels[word_idx] not in self.tag2id:
+                  raise ValueError(f"Found unknown label {labels[word_idx]} in sentence {sentence}")
+
+              label_ids.append(self.tag2id[labels[word_idx]])
 
       return {
           'input_ids': encoded['input_ids'].squeeze(),
           'attention_mask': encoded['attention_mask'].squeeze(),
           'labels': torch.tensor(label_ids)
       }
+
 
 
 
@@ -175,23 +167,30 @@ class POSpipeline:
         
         # Loading the model
         self.seqeval = evaluate.load("seqeval")
-        self.model = AutoModelForTokenClassification.from_pretrained(model_name,
-                                                num_labels=len(self.id2label),
-                                                id2label=self.id2label,
-                                                label2id=self.label2id)
+        print(f"Setting up model with {len(self.label2id)} labels")
+        self.model = AutoModelForTokenClassification.from_pretrained(
+          model_name,
+          num_labels=len(self.label2id),  # Ensure correct number of labels
+          id2label=self.id2label,
+          label2id=self.label2id
+          )
+
         self.data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer)
         
         # Converting Data to TF_Dataset format
         self.train_dataset = POSDataset(
-            texts=self.train_data,
-            labels=self.train_labels,
-            tokenizer=self.tokenizer,
+          texts=self.train_data,
+          labels=self.train_labels,
+          tokenizer=self.tokenizer,
+          tag2id=self.label2id  # ✅ Add this argument
         )
+
         
         self.eval_dataset = POSDataset(
             texts=self.eval_data,
             labels=self.eval_labels,
             tokenizer=self.tokenizer,
+            tag2id=self.label2id
         )
 
     #=================== Prepate Data ===================#
