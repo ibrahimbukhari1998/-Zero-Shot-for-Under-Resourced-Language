@@ -25,7 +25,7 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 |                 | Glot500 | 72% | 69% |
 | Welsh → Irish | | | |
 |                 | XLM-R | 47% | 42% |
-|                 | Glot500 | % | % |
+|                 | Glot500 | 33% | 19% |
 
 
 ### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning Dataset with Noise Injection
