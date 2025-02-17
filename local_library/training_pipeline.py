@@ -162,7 +162,8 @@ class POSpipeline:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         # Creating label2id & id2label dictionaries
-        self.label2id = {label: idx for idx, label in enumerate(set(label for labels in self.train_labels for label in labels))}
+        # self.label2id = {label: idx for idx, label in enumerate(set(label for labels in self.train_labels for label in labels))}
+        self.label2id = {idx: idx for idx, label in enumerate(self.label_list)}
         self.id2label = {idx: label for label, idx in self.label2id.items()}
         
         # Loading the model
