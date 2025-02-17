@@ -28,22 +28,21 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 ### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning Dataset with Noise Injection
 
 
-#### 25 Percent Noise Injection
-
-| Language Pair | Model | Accuracy | F1 Score |
-|--------------|---------|----------|-----------|
-| English → Wolof | | | |
-|                 | XLM-R | 23% | 20% |
-|                 | Glot500 | 42% | 41% |
-| Standard Arabic → Urdu | | | |
-|                 | XLM-R | 24% | 11% |
-|                 | Glot500 | 24% | 11% |
-| French → Catalan | | | |
-|                 | XLM-R | 46% | 46% |
-|                 | Glot500 | 68% | 67% |
-| Russian → Ukrainian | | | |
-|                 | XLM-R | 54% | 53% |
-|                 | Glot500 | 66% | 61% |
+| Language Pair | Model | 25% Noise |  | 75% Noise |  |
+|--------------|--------|------------|------------|------------|------------|
+| | | Accuracy | F1 Score | Accuracy | F1 Score |
+| English → Wolof | | | | | |
+| | XLM-R | 23% | 20% | 22% | 19% |
+| | Glot500 | 42% | 41% |38% | 38% |
+| Standard Arabic → Urdu | | | | | |
+| | XLM-R | 24% | 11% | 23% | 11% |
+| | Glot500 | 24% | 11% | 24% | 11% |
+| French → Catalan | | | | | |
+| | XLM-R | 46% | 46% | 46% | 45% |
+| | Glot500 | 68% | 67% | 67% | 66% |
+| Russian → Ukrainian | | | | | |
+| | XLM-R | 54% | 53% | 51% | 50% |
+| | Glot500 | 66% | 61% | 59% | 53% |
 
 
 ### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning with BPE/Word Dropout
