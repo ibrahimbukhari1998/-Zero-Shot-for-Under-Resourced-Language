@@ -209,8 +209,8 @@ class POSpipeline:
             # Extract the texts and tags
             train_texts=[item['tokens'] for item in dataset['train']]
             train_tags=[item['upos'] for item in dataset['train']]
-            eval_texts=[item['tokens'] for item in dataset['test']]
-            eval_tags=[item['upos'] for item in dataset['test']]
+            eval_texts=[item['tokens'] for item in dataset['validation']]
+            eval_tags=[item['upos'] for item in dataset['validation']]
             
             # Sample the data
             if self.sample_threshold > 0.0:
