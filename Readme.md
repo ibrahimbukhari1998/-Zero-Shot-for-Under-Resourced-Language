@@ -22,7 +22,7 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 |                 | Glot500 | 69% | 69% |
 | Russian → Ukrainian | | | |
 |                 | XLM-R | 72% | 69% |
-|                 | Glot500 | 76% | 73% |
+|                 | Glot500 | 72% | 69% |
 
 
 ### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning Dataset with Noise Injection
