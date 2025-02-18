@@ -46,12 +46,12 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 | English      | Wolof        | XLM-R   |0.2     |   41%        |  21%    |
 | English      | Wolof        | Glot500 |0.1      |   41%  | 21%     |
 | Standard Arabic | Urdu      | XLM-R   |0.1      | 31%      | 8%      |
-| Standard Arabic | Urdu      | Glot500 |0.1        |      |     |
+| Standard Arabic | Urdu      | Glot500 |0.1        |  31%    |  9%   |
 | French       | Catalan      | XLM-R   |0.1      |  40%     |   21%  |
 | French       | Catalan      | XLM-R   |0.2      |  35%     |   15%  |
 | French       | Catalan      | Glot500 |0.1      | 35%      | 15%      |
-| Russian      | Ukrainian    | XLM-R   |         | 94%     | 93%      |
-| Russian      | Ukrainian    | Glot500 |         | %      | %      |
+| Russian      | Ukrainian    | XLM-R   |0.1         | 94%     | 93%      |
+| Russian      | Ukrainian    | Glot500 |0.1         | 85%      | 81%      |
 
 ## Project Steps
 
