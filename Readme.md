@@ -6,6 +6,20 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 
 ## Results
 
+### Fragmentation Rate
+
+|Language| XLMR Fragment Rate| Glot500 Fragment Rate|
+|--------------|----------|----------|
+| English|1.30 | 1.19|
+| Wolof| 1.81 |1.38 |
+| French| 1.44|1.32 |
+| Catalan|1.41 |1.30 |
+| Standard Arabic| 1.0| 1.0|
+| Urdu| 1.31| 1.28|
+| Russian| 1.67|1.49 |
+| Ukranian| 1.74| 1.57|
+
+
 ### Cross-Lingual Transfer Performance: Mono-Lingual Fine-Tuning Dataset
 
 
