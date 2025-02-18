@@ -54,16 +54,16 @@ Compare the performance of XLM-R and Glot500 when fine-tuned for POS tagging on 
 ## Cross-Lingual Transfer Performance: Low-Resource Language and High Resource during Training
 | High Resource | Low Resource | Model  | Accuracy | F1 Score |
 |--------------|--------------|---------|----------|-----------|
-| English      | Wolof        | Glot500   |   80%        |  80%    |
-| English      | Wolof        | XLM-R   |   46%        |  45%    |
-| French      | Catalan        | Glot500 |   74%  | 74%     |
-| French      | Catalan      | XLM-R   | 51%      | 51%      |
-| Standard Arabic | Urdu      | Glot500 | 94%      | 94%      |
-| Standard Arabic | Urdu      | XLM-R   |  89%     |   88%  |
-| Russian       | Ukranian      | Glot500   |  80%     |   80%  |
-| Russian       | Ukranian      | XLM-R | 56%      | 55%      |
-| Welsh     | Irish    | Glot500  | 79%      | 77%      | 
-| Welsh      | Irish    | XLM-R | 64%      | 64%      |
+| English + Wolof      | Wolof        | Glot500   |   80%        |  80%    |
+|                      || XLM-R   |   46%        |  45%    |
+| French + Catalan      | Catalan        | Glot500 |   74%  | 74%     |
+|                       || XLM-R   | 51%      | 51%      |
+| Standard Arabic  + Urdu | Urdu      | Glot500 | 94%      | 94%      |
+||| XLM-R   |  89%     |   88%  |
+| Russian + Ukranian      | Ukranian      | Glot500   |  80%     |   80%  |
+||| XLM-R | 56%      | 55%      |
+| Welsh + Irish     | Irish    | Glot500  | 79%      | 77%      | 
+||| XLM-R | 64%      | 64%      |
 
 ## Project Steps
 
